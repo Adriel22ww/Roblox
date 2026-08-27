@@ -1,0 +1,46 @@
+name: PC Virtual RDP
+
+on:
+  workflow_dispatch:
+
+jobs:
+  pc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Instalar interface gráfica e RDP
+        run: |
+          sudo apt update
+          sudo apt install -y xfce4 xfce4-goodies xrdp dbus-x11
+
+          sudo systemctl enable xrdp
+          sudo systemctl start xrdp
+
+          echo "startxfce4" > /home/runner/.xsession
+          sudo chown runner:runner /home/runner/.xsession
+
+      - name: Configurar senha do usuário
+        env:
+          RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
+        run: |
+          echo "runner:$RDP_PASSWORD" | sudo chpasswd
+
+      - name: Conectar ao Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
+      - name: Mostrar IP do PC virtual
+        run: |
+          echo "================================="
+          echo "IP TAILSCALE:"
+          tailscale ip -4
+          echo "================================="
+          echo "Usuário RDP: runner"
+          echo "Porta RDP: 3389"
+          echo "================================="
+
+      - name: Manter PC ligado
+        run: |
+          echo "PC virtual iniciado!"
+          sleep 21600
