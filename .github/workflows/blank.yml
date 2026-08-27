@@ -1,10 +1,10 @@
-name: PC Virtual - Laboratório
+name: PC Virtual RDP
 
 on:
   workflow_dispatch:
 
 jobs:
-  laboratorio:
+  pc:
     runs-on: ubuntu-24.04
     timeout-minutes: 350
 
@@ -21,7 +21,7 @@ jobs:
             xorgxrdp \
             dbus-x11
 
-      - name: Configurar sessão XFCE
+      - name: Configurar XFCE para XRDP
         run: |
           sudo tee /etc/xrdp/startwm.sh > /dev/null <<'EOF'
           #!/bin/sh
@@ -30,6 +30,9 @@ jobs:
           unset XDG_RUNTIME_DIR
 
           export XDG_CURRENT_DESKTOP=XFCE
+          export XDG_SESSION_DESKTOP=xfce
+          export XDG_CONFIG_DIRS=/etc/xdg/xdg-xfce:/etc/xdg
+          export XDG_DATA_DIRS=/usr/share/xfce4:/usr/local/share:/usr/share
 
           exec startxfce4
           EOF
@@ -46,7 +49,7 @@ jobs:
           RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
         run: |
           if [ -z "$RDP_PASSWORD" ]; then
-            echo "ERRO: o Secret RDP_PASSWORD não foi configurado."
+            echo "ERRO: RDP_PASSWORD não foi configurado."
             exit 1
           fi
 
@@ -65,20 +68,35 @@ jobs:
       - name: Conectar ao Tailscale
         uses: tailscale/github-action@v4
         with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
 
       - name: Verificar Tailscale
         run: |
           echo "===== TAILSCALE ====="
           tailscale status
 
-          echo "===== IP ====="
+          echo "===== IP TAILSCALE ====="
           tailscale ip -4
+
+      - name: Testar porta RDP pelo Tailscale
+        run: |
+          IP=$(tailscale ip -4)
+
+          echo "======================================"
+          echo "IP TAILSCALE: $IP"
+          echo "TESTANDO PORTA 3389..."
+          echo "======================================"
+
+          if timeout 5 bash -c "</dev/tcp/$IP/3389"; then
+            echo "PORTA 3389 ACESSÍVEL"
+          else
+            echo "PORTA 3389 NÃO ACESSÍVEL"
+          fi
 
       - name: Mostrar informações
         run: |
           echo "======================================"
-          echo "LABORATÓRIO RDP"
+          echo "PC VIRTUAL RDP"
           echo "======================================"
           echo "IP TAILSCALE:"
           tailscale ip -4
@@ -86,11 +104,11 @@ jobs:
           echo "Porta: 3389"
           echo "======================================"
 
-      - name: Manter laboratório ativo
+      - name: Manter PC ligado
         run: |
-          echo "Laboratório iniciado."
+          echo "PC virtual está pronto!"
 
           while true; do
-            echo "Ativo: $(date)"
+            echo "PC ativo: $(date)"
             sleep 300
           done
