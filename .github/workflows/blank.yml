@@ -1,16 +1,16 @@
-name: PC Virtual RDP
+name: PC Virtual - Laboratório
 
 on:
   workflow_dispatch:
 
 jobs:
-  pc:
+  laboratorio:
     runs-on: ubuntu-24.04
     timeout-minutes: 350
 
     steps:
 
-      - name: Instalar XFCE e RDP
+      - name: Instalar XFCE e XRDP
         run: |
           sudo apt-get update
 
@@ -19,11 +19,10 @@ jobs:
             xfce4-goodies \
             xrdp \
             xorgxrdp \
-            dbus-x11 \
-            ufw
+            dbus-x11
 
-          sudo systemctl enable xrdp
-
+      - name: Configurar sessão XFCE
+        run: |
           sudo tee /etc/xrdp/startwm.sh > /dev/null <<'EOF'
           #!/bin/sh
 
@@ -39,8 +38,7 @@ jobs:
 
           sudo adduser xrdp ssl-cert || true
 
-          sudo ufw allow 3389/tcp || true
-
+          sudo systemctl enable xrdp
           sudo systemctl restart xrdp
 
       - name: Configurar senha RDP
@@ -48,19 +46,17 @@ jobs:
           RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
         run: |
           if [ -z "$RDP_PASSWORD" ]; then
-            echo "ERRO: RDP_PASSWORD não existe."
+            echo "ERRO: o Secret RDP_PASSWORD não foi configurado."
             exit 1
           fi
 
           echo "runner:$RDP_PASSWORD" | sudo chpasswd
 
-      - name: Verificar RDP
+      - name: Verificar XRDP
         run: |
-          sudo systemctl restart xrdp
-
           sleep 5
 
-          echo "===== XRDP ====="
+          echo "===== STATUS XRDP ====="
           sudo systemctl status xrdp --no-pager || true
 
           echo "===== PORTA 3389 ====="
@@ -69,7 +65,7 @@ jobs:
       - name: Conectar ao Tailscale
         uses: tailscale/github-action@v4
         with:
-          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
       - name: Verificar Tailscale
         run: |
@@ -79,15 +75,22 @@ jobs:
           echo "===== IP ====="
           tailscale ip -4
 
-      - name: Mostrar informações do PC
+      - name: Mostrar informações
         run: |
           echo "======================================"
-          echo "PC VIRTUAL PRONTO"
+          echo "LABORATÓRIO RDP"
           echo "======================================"
           echo "IP TAILSCALE:"
           tailscale ip -4
-          echo "Usuário RDP: runner"
-          echo "Porta RDP: 3389"
+          echo "Usuário: runner"
+          echo "Porta: 3389"
           echo "======================================"
 
-      - name: Manter PC
+      - name: Manter laboratório ativo
+        run: |
+          echo "Laboratório iniciado."
+
+          while true; do
+            echo "Ativo: $(date)"
+            sleep 300
+          done
