@@ -5,42 +5,97 @@ on:
 
 jobs:
   pc:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
 
     steps:
+
       - name: Instalar interface gráfica e RDP
         run: |
-          sudo apt update
-          sudo apt install -y xfce4 xfce4-goodies xrdp dbus-x11
+          sudo apt-get update
 
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            xfce4 \
+            xfce4-goodies \
+            xrdp \
+            xorgxrdp \
+            dbus-x11 \
+            ufw
+
+          # Configurar XFCE para o XRDP
+          sudo tee /etc/xrdp/startwm.sh > /dev/null <<'EOF'
+          #!/bin/sh
+          unset DBUS_SESSION_BUS_ADDRESS
+          unset XDG_RUNTIME_DIR
+
+          export XDG_CURRENT_DESKTOP=XFCE
+          export XDG_CONFIG_DIRS=/etc/xdg/xdg-xfce:/etc/xdg
+          export XDG_DATA_DIRS=/usr/share/xfce4:/usr/local/share:/usr/share
+
+          exec startxfce4
+          EOF
+
+          sudo chmod +x /etc/xrdp/startwm.sh
+
+          # Adicionar xrdp ao grupo dos certificados
+          sudo adduser xrdp ssl-cert || true
+
+          # Habilitar e reiniciar XRDP
           sudo systemctl enable xrdp
-          sudo systemctl start xrdp
+          sudo systemctl restart xrdp
 
-          echo "startxfce4" > /home/runner/.xsession
-          sudo chown runner:runner /home/runner/.xsession
+          # Liberar porta RDP
+          sudo ufw allow 3389/tcp || true
 
       - name: Configurar senha do usuário
         env:
           RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
         run: |
+          if [ -z "$RDP_PASSWORD" ]; then
+            echo "ERRO: o Secret RDP_PASSWORD não foi configurado."
+            exit 1
+          fi
+
           echo "runner:$RDP_PASSWORD" | sudo chpasswd
 
+      - name: Corrigir e verificar RDP
+        run: |
+          sudo systemctl restart xrdp
+
+          sleep 5
+
+          echo "===== STATUS XRDP ====="
+          sudo systemctl status xrdp --no-pager || true
+
+          echo "===== PORTA 3389 ====="
+          sudo ss -lntp | grep ':3389' || true
+
+          echo "===== TESTE XRDP ====="
+          sudo systemctl is-active xrdp || true
+
       - name: Conectar ao Tailscale
-        uses: tailscale/github-action@v4
+        uses: tailscale/github-action@v3
         with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
 
       - name: Mostrar IP do PC virtual
         run: |
-          echo "================================="
+          echo "================================"
+          echo "       PC VIRTUAL RDP"
+          echo "================================"
           echo "IP TAILSCALE:"
           tailscale ip -4
-          echo "================================="
+          echo "================================"
           echo "Usuário RDP: runner"
           echo "Porta RDP: 3389"
-          echo "================================="
+          echo "================================"
 
       - name: Manter PC ligado
         run: |
-          echo "PC virtual iniciado!"
-          sleep 21600
+          echo "PC virtual está pronto!"
+          echo "Aguardando conexão RDP..."
+
+          while true; do
+            echo "PC ativo: $(date)"
+            sleep 300
+          done
